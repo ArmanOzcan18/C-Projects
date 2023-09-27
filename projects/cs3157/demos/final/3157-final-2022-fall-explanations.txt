@@ -1,0 +1,657 @@
+[1]
+
+fgmalloc() and fgfree() help keep track of memory leaks by counting the amount
+of memory allocated.  Some observations about fgmalloc()'s implementation:
+
+  - Each time fgfree() is called, it allocates 8 bytes (sizeof(size_t)) of extra
+    memory on the heap, and stores the allocated size in those extra bytes by
+    writing it to the first 8 bytes.
+
+    Thus, the buffer allocated by fgmalloc() looks something like this:
+
+      +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---
+      |               size            |         user data         ...
+      +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---
+      ^                               ^
+      |                               |
+      h, i.e., what malloc() returned |
+                                      h + 1, i.e., what fgmalloc() returns, and
+                                                   what fgfree() has to free
+
+    fgmalloc() returns 8 bytes past what malloc() returns so that the caller of
+    fgmalloc() doesn't need to worry about where size is stored.  It
+    accomplishes this by returning h + 1; since h is a pointer to a size_t, the
+    expression h + 1 evaluates to the memory address 8 bytes past h.
+
+    fgfree() needs to take this offset into account when freeing heap memory.
+
+    N.B.: knowing that sizeof(size_t) = 8 is not actually necessary to
+    understand this problem.  fgmalloc() and fgfree() would work and be written
+    the same way for any other size_t length.
+
+  - fg_b keeps track of the number of "chunks" allocated (i.e., the number of
+    times fgmalloc() is called minus the number of times fgfree() is called).
+    fgmalloc() increments fg_b, while fgfree() decrements fg_b.
+
+  - fg_a keeps track of the number of bytes allocated. Each time fgmalloc() is
+    called, it adds the size allocated to fg_a, so fgfree() must correspondingly
+    subtract that size from fg_a.
+
+Note that none of the questions aside from 1.1, 2.3, and 4.2 actually require
+you to understand how these functions work, only that they behave like malloc()
+and free() (as stated in the question).
+
+    (1.1)
+
+        void fgfree(void *p)
+        {
+            size_t *h = p;
+
+            fg_a -= h[-1];
+
+            fg_b--;
+
+            free(h - 1);
+            // free(--h); is also acceptable
+        }
+
+    Explanation:
+
+    fgfree() must free pointers returned by fgmalloc(), just like what free()
+    must do with pointers returned by malloc().  Thus, it calls free() on h - 1
+    to recover the original memory address returned by malloc().
+
+    fgfree() must also subtract the allocated size from fg_a; it can do this by
+    reading the size stored in the 8 bytes before p (see the diagram above).
+    We can access those bytes using a negative index, i.e., h[-1].  Recall that
+    h[-1] is simply syntactic sugar for *(h - 1), which dereferences the memory
+    address 8 bytes before h.
+
+    Note that performing pointer arithmetic on p won't work here, because its
+    type is void *.  C forbids us from performing pointer arithmetic on void *s
+    because the element size of what such a pointer is not known.  In other
+    words, we can do h + 1 because we know what sizeof(*h) is, but we cannot do
+    p + 1 because we do not know what sizeof(*p) is.
+
+    (1.2)
+
+        CC        = gcc
+        CFLAGS    = -g
+        LDFLAGS   = -L.
+        LDLIBS    = -lfg
+        AR        = ar
+        ARFLAGS  += -U
+
+        .PHONY: default
+        default: libfg.a fgtest
+                ./fgtest
+
+    Explanation:
+
+    Completing this Makefile was primarily an exercise in reading the output
+    from the make command.  Here are the commands that make runs, annotated:
+
+        gcc -g -c -o freegrind.o freegrind.c    # Compile freegrind.c
+        ar rv -U libgfg.a freegrind.o           # Add freegrind.o to libfg.a
+        ar: creating libfg.a                    #   (output from ar)
+        a - freegrind.o                         #   (output from ar)
+        gcc -g -c -o fgtest.o fgtest.c          # Compile fgtest.c
+        gcc -L. fgtest.o -lfg -o fgtest         # Link fgtest with libfg.a
+        ./fgtest                                # Execute fgtest
+
+    We can see from this that:
+
+      - We are using gcc, which tells us what to write for CC
+      - We are compiling with the -g flag, which tells us CFLAGS
+      - We ask the linker to look for libraries in the current directory using
+        the -L. flag, which we specify in LDFLAGS
+      - We ask the linker to link in libfg.a with the -lfg flag, which we
+        specify in LDLIBS
+
+    Finally, running make with no arguments built fgtest, even though our first
+    target is the PHONY default target.  Thus, we needed to specify fgtest as
+    a prerequisite of the default target.
+
+    However, fgtest doesn't explicitly depend on libfg.a (per convention when
+    linking with library archives), so we also need to tell Make to build
+    libfg.a first, before building fgtest.  We can infer this from the fact Make
+    built libfg.a first, before building fgtest.
+
+    Writing "fgtest libfg.a" or just "fgtest" on its own would not work, because
+    the linker would not be able to successfully build fgtest if libfg.a does
+    not exist.
+
+    (1.3)
+
+        700   (written without setuid/setgid/sticky)
+
+      OR
+
+        0700  (written with setuid/setgid/sticky)
+
+    Explanation:
+
+    When we build an executable, it is readable and writable to the owner (like
+    any other file, by default), but it is also executable---that's why we are
+    allowed to execute fgtest by running ./fgtest.  This means its file owner
+    permissions triad has read, write, and execute all set:
+
+        r w x - - - - - -
+
+    Since the question specifies that the file is not accessible to any other
+    users, the other permission triads have no permission bits set.
+
+    In octal notation, these permissions are written as 700, where the
+    7 corresponds to the user's rwx permissions, and the 0 corresponds to other
+    users' lack of permissions.
+
+    It is also technically correct to write 0700, where the leading 0 indicates
+    the setuid/setgid/sticky bits.  We did not cover the meaning of those flags
+    this semester, and none of them are set, but it is not incorrect to include
+    them in the octal notation of a file's permissions.
+
+[2]
+
+  (2.1)   SAME OUTPUT
+
+  Explanation:
+
+  sizeof() does not evaluate its operand, it just looks at the type of its
+  operand and returns its size.  It does not actually try to perform the
+  out-of-bounds memory access.  Thus, sizeof(i[4]) is the same as sizeof(int).
+
+  (2.2)   DIFFERENT OUTPUT
+
+  Explanation:
+
+  sizeof(i) returns the size of the type of i; since i is an int *, sizeof(i)
+  evaluates to 8.  fwrite() multiplies this number with its third argument, 1,
+  to determine how many bytes to write to stdout.
+
+  Thus, instead of 4 * 3 = 12 bytes to stdout, it writes 12 * 1 = 12 bytes,
+  leading to different output.
+
+  (2.3)   RUNTIME ERROR
+
+  Explanation:
+
+  This question tests whether you understand that fgmalloc() returns 8 bytes
+  past the beginning of the heap-allocated memory.  Thus, passing the pointer
+  fgmalloc() returns directly to free() leads to an invalid free(), which is
+  a runtime error.
+
+  Note that the invalid free() is a memory error, and is NOT considered an
+  assertion failure or a memory leak.  Since this question was mainly testing
+  you understanding of the memory layout set up by fgmalloc(), these scenarios
+  were all grouped under the blanket "RUNTIME ERROR" answer.
+
+  (2.4)   LINK ERROR
+
+  Explanation:
+
+  Replacing the declarations of fg_a and fg_b with definitions does not lead to
+  a compile error, because as far as fgtest.c is concerned, it just needs to
+  have some kind of indication about the types of those global variables.
+
+  However, we run into trouble when we try to link fgtest.o with freegrind.o.
+  Both of those object files define the fg_a and fg_b symbols, leading to
+  a multiple definition error.
+
+  (2.5)   COMPILE FGTEST ERROR
+
+  Explanation:
+
+  Modifying the type of fgfree() in its declaration in fgtest.c would lead to
+  a compilation error, because the main() function in fgtest.c calls fgfree()
+  with a pointer, conflicting with the now-modified type.
+
+  (2.6)   LINK ERROR
+
+  Explanation:
+
+  Removing the definition of the main() symbol will cause the linker to complain
+  that about a missing definition main(), which it needs to tell the executable
+  where to start running.
+
+
+[3]
+
+This question partly depended on being able to read the output of decho on its
+own.  From the shell session, we see:
+
+    $ ./decho 49 10 48 10 92 110 10
+    1
+    0
+    \n
+
+./decho outputted the bytes '1', '\n', '0', '\n', '\\', 'n', and '\n',
+corresponding to the numeric values of 49, 10, 48, 10, 92, 110, and 10.
+
+    (3.1)   $ ./decho 49 10 48 10 92 110 10 | wc -l
+            3
+
+    Explanation:
+
+    wc -l counts the number of newline characters given to its standard input.
+    The number 10 appears 3 times in decho's arguments, so it will print
+    3 newline characters.
+
+    (3.2)   $ ./fgtest | ./dcat
+            0, 0, 0, 31, 31, 0, 5, 7, 0, 48, 0, 0,
+
+    Explanation:
+
+    fgtest.c calls fwrite() three times, each time outputting four bytes,
+    meaning in total it outputs twelve bytes.  dcat reads the value of these
+    bytes and prints them in decimal representation, meaning there should be
+    twelve comma-separated numbers in your answer.
+
+    The first four numbers: 0, 0, 0, 31,
+
+    The first four bytes emitted by fgest.c correspond to the value of htonl(31)
+    (assigned to i[0]).  htonl() converts the number 31 in network (big-endian)
+    byte order, where the least significant byte (i.e., 31) goes last:
+
+                +---+---+---+---+
+                | 0 | 0 | 0 | 31| 31 (big-endian)
+                +---+---+---+---+
+
+    This is why the first four numbers are 0, 0, 0, and 31.
+
+    The next four numbers: 31, 0, 5, 7,
+
+    Next, the second four numbers correspond to the value of adding 0x507 to
+    i[0], and then calling ntohl() on the result.  First, note that 0x507 is
+    still in host (little-endian) byte order, so its in-memory representation
+    looks like this:
+
+                +---+---+---+---+
+                | 7 | 5 | 0 | 0 | 0x507   (little-endian)
+                +---+---+---+---+
+
+    We can easily obtain the in-memory representation because each two hex
+    digits correspond to a byte: this is made clearer when we left-pad 0x507
+    with zeroes to make it appear as a full 4-byte integer:
+
+            0   x   0   0   0   0   0   5   0   7
+            -----   -----   -----   -----   -----
+              |       |       |       |       |
+              |       |       |       |       least significant byte
+              |       |       |       2nd least significant byte
+              |       |       2nd most significant byte
+              |       most significant byte
+              hexadecimal notation syntax
+
+    Now, we need to add 0x507 to i[0], aka htonl(31).  The crux to this part was
+    understanding that even though we've converted 31 to a "big-endian" number,
+    that big-endian number can still be interpreted as a little-endian number
+    whose in-memory representation also looks like this:
+
+                +---+---+---+---+
+                | 0 | 0 | 0 | 31| 31 << 24 (little-endian)
+                +---+---+---+---+
+
+    With 31 as the most significant byte, that number is 31 << 24 = 31 * 2^24,
+    whose specific decimal value we won't bother calculating.  We can do long
+    addition on bytes just like we can on any multi-digit number (whether in
+    decimal, hexadecimal, or binary), so we need to add 31 << 24 to 0x507:
+
+                +---+---+---+---+
+                | 0 | 0 | 0 | 31| 31 << 24          (little-endian)
+                +---+---+---+---+
+                +---+---+---+---+
+              + | 7 | 5 | 0 | 0 | 0x705             (little-endian)
+                +---+---+---+---+
+            -------------------------
+                +---+---+---+---+
+              = | 7 | 5 | 0 | 31| 31 << 24 + 0x705  (little-endian)
+                +---+---+---+---+
+
+    Because no two pair of digits added up to a value greater than 255, we did
+    not have to worry about carrying.
+
+    Now, we call ntohl() on 31 << 24 + 0x705.  ntohl() is advertised to convert
+    network (big-endian) byte order numbers to host (little-endian) byte order,
+    but it doesn't actually know whether its input is big- or little- endian, so
+    all it does is swap the order of bytes:
+
+                +---+---+---+---+
+         ntohl( | 7 | 5 | 0 | 31| )   (some number)
+                +---+---+---+---+
+            -------------------------
+                +---+---+---+---+
+              = | 31| 0 | 5 | 7 |     (some number)
+                +---+---+---+---+
+
+    Note that the numeric interpretation of these bytes doesn't even matter any
+    more; we are just swapping four bytes. The fwrite() call outputs those
+    swapped bytes, leading to the next four numbers being 31, 0, 5, and 7.
+
+    The last four numbers: 0, 48, 0, 0,
+
+    Finally, we need to determine the values outputted in the last four bytes.
+    These are independent of the first eight, and is just the value of '0' << 8.
+
+    Recall that ASCII characters are just numbers, and ASCII character notation
+    (like '0') is just syntactic sugar for those numbers in C.  In particular,
+    the number that encodes the '0' character is 48, which we can determine from
+    the output of decho from earlier.  So, we have the number 48:
+
+                +---+---+---+---+
+                | 48| 0 | 0 | 0 | '0'       (little-endian)
+                +---+---+---+---+
+
+    When we bit-shift to the right by eight bits, we are moving that byte from
+    the least significant position to the second least significant position:
+
+                +---+---+---+---+
+                | 0 | 48| 0 | 0 | '0' << 8  (little-endian)
+                +---+---+---+---+
+
+    fwrite() writes those bytes, leading dcat to print 0, 48, 0, and 0.
+
+[4]
+
+Ignoring the print statements for now, let's try to understand what fgecho does.
+The fgecho program begins by roughly duplicating the structure of argv: first,
+it allocates the outer array:
+
+    char **copy = fgmalloc(argc * sizeof(char *));
+
+Then, in that outer array, it allocates an inner array for each argument, and
+copies that argument into that inner array:
+
+    for (int i = 0; i < argc; i++) {
+
+        size_t len = sizeof(argv[i]);
+        copy[i] = fgmalloc(len + 1);
+
+        strcpy(copy[i], argv[i]);     // Copy argv[i] to copy[i]
+
+        copy[i][sizeof(copy[i]) / 2] = '\0';
+    }
+
+fgecho may seem similar to twecho from Lab 2 part 2, but there are a few
+important differences:
+
+  - The length of the outer array is argc, not argc + 1; no space is included
+    for a NULL pointer at the end of the outer array.
+
+  - For each of the inner arrays, it only allocates sizeof(argv[i]) + 1 instead
+    of strlen(argv[i]) + 1.  Recall that sizeof() only gives the size of the
+    type of its argument, and does not measure the length of the string stored
+    in it; since the type of argv[i] is char *, sizeof(argv[i]) evaluates to 8,
+    so fgecho always allocates a fixed size of 9 bytes per argument.
+
+  - fgecho places a null byte at position sizeof(copy[i]) / 2 of each string.
+    Once again, sizeof(copy[i]) gives the size of the type of copy[i], so the
+    statement:
+
+        copy[i][sizeof(copy[i]) / 2] = '\0';
+
+    Simply places a '\0' at the fourth byte of copy[i].
+
+After the first for-loop, fgecho produces the following data structure (with the
+arguments given in the problem):
+
+    char **         char *              char
+    -------         ------              ----
+
+    copy ---->  +---------------+       +---+---+---+---+---+---+---+---+---+
+                |   copy[0]     | ----> |'.'|'/'|'f'|'g'| 0 |'c'|'h'|'o'| 0 |
+                +---------------+       +---+---+---+---+---+---+---+---+---+
+                |   copy[1]     | ----> |'.'|'/'|'e'|'v'| 0 |'r'|'y'| 0 | ? |
+                +---------------+       +---+---+---+---+---+---+---+---+---+
+                |   copy[2]     | ----> |'.'|'/'|'t'|'h'| 0 |'n'|'g'| 0 | ? |
+                +---------------+       +---+---+---+---+---+---+---+---+---+
+                |   copy[3]     | ----> |'.'|'/'|'i'|'s'| 0 | ? | ? | ? | ? |
+                +---------------+       +---+---+---+---+---+---+---+---+---+
+                |   copy[4]     | ----> |'.'|'/'|'b'|'y'| 0 |'e'|'s'| 0 | ? |
+                +---------------+       +---+---+---+---+---+---+---+---+---+
+
+Uninitialized bytes are represented by ?, while null bytes are represented by 0;
+the value of all other bytes are written in ASCII notation.  This illustration
+also omits the size that fgmalloc() stores in the 8 bytes before each
+heap-allocated buffer.
+
+After constructing the copy structure, fgecho iterates through it, printing and
+freeing each element:
+
+    for (int i = 0; i < argc; i++) {
+        printf("%s\n", copy[i]);
+        fgfree(copy[i]);
+    }
+
+Then, fgecho exec()s constructs another argument vector consisting of only
+argv[0]:
+
+    char *args[] = { argv[0], NULL };
+    execv(*args, args);
+
+This is the same as just executing ./fgecho on its own, without arguments.  The
+fgecho program starts again, but because it now has no arguments, it just exits:
+
+    if (argc == 1) {
+        fprintf(stderr, "A %d %d\n", fg_a, fg_b);
+        return 0;
+    }
+
+A successful call to exec() never returns, so that concludes the execution of
+the program.
+
+    (4.1)
+
+        ./fg
+        ./ev
+        ./th
+        ./is
+        ./by
+
+    In its second for-loop, fgecho prints each string element of copy to stdout.
+    The null byte placed at the 4th position truncates the string, nothing past
+    that byte will be printed, which is why the output only contains the first
+    four characters of the output.
+
+    It's also important to note that '.' and '/' are regular byte-sized
+    characters, just 'f', 'g', and the others.  After all, everything is bytes.
+
+    (4.2)
+
+        B 40 1
+        C 85 6
+        A 0 0
+
+    While the contents of copy are printed to stdout, the memory usage of fgecho
+    (as measured by fg_a and fg_b, from freegrind.c) are printed to stderr.
+
+    The first fprintf() statement to execute, beginning with B, reports the
+    number of bytes and chunks allocated after allocating copy's outer array.
+    This a single chunk whose size is argc * sizeof(char *) = 5 * 8 = 40,
+    leading to the first line:
+
+        B 40 1
+
+    The second fprintf() statement to execute, beginning with C, reports the
+    number of bytes and chunks allocated after allocating each of copy's inner
+    arrays.  5 additional chunks are allocated, corresponding to each argument
+    of fgecho; each of those chunks have size sizeof(argv[i]) + 1 = 8 + 1 = 9,
+    so we add 9 * 5 = 45 and 5 to the previous numbers, 40 and 1, respectively:
+
+        C 85 6
+
+    The program then calls exec() and executes itself with no arguments.  Since
+    exec() never returns, the program never reaches the fprintf() statement
+    beginning with D (which would have otherwise printed D 0 0).  Instead, the
+    program restarts, with global variables fg_a and fg_b re-initialized to 0.
+    The fprintf() statement if-block at the beginning of main() prints before
+    fgmalloc() has allocated anything (in the second execution of the program),
+    so it prints:
+
+        A 0 0
+
+[5]
+
+    (5.1)
+            B           B
+            B           A
+            A           B
+
+    The crux of this problem was understanding that && is short-circuiting, and
+    that waitpid() only waits for and reaps a single child.
+
+    First, the program evaluates the fork() in the left operand of &&, leading
+    to the following fork diagram:
+
+        _________ parent  (first fork() returns non-zero)
+          \
+           \
+            \
+             \___ child 1 (first fork() returns zero)
+
+    Since fork() returns zero for the child, the child does not evaluate the
+    right operand of &&; only the parent does:
+
+        _______________ parent  (second fork() returns non-zero again)
+          \       \
+           \       \___ child 2 (second fork() returns zero)
+            \
+             \_________ child 1 (first fork() returned zero)
+
+    For the parent process, with both fork()s returning a non-zero PID, it
+    enters the "then" branch of the conditional statement (which prints A);
+    for each child, since one of the fork() calls returned zero, they enter the
+    "else" branch (which prints B).
+
+    While all three processes execute concurrently, the parent waits for at
+    least one of its children to terminate before printing A.  It doesn't matter
+    which child actually terminates first, so let's say, without loss of
+    generality, that child 2 returns first:
+
+        ___________o . . . . . . . o__print "A"___x parent
+          \     \                 /
+           \     \____print "B"__x                  child 2
+            \
+             \________print "B"___________________x child 1
+
+    The parent's waitpid() ensures that A is printed after AT LEAST one B.
+    However, there are still two possible scenarios: the parent prints A before
+    child 1 prints B:
+
+        ___________o . . . . . . . o__print "A"___________________x parent
+          \     \                 /
+           \     \____print "B"__x                                  child 2
+            \
+             \________________________________________print "B"___x child 1
+
+    Or the parent prints A after child 1 prints B:
+
+        ___________o . . . . . . . o__________________print "A"___x parent
+          \     \                 /
+           \     \____print "B"__x                                  child 2
+            \
+             \________________________print "B"___________________x child 1
+
+    (5.2)
+            B
+            A
+            A
+
+    This problem is actually slightly easier than 5.1, since the output is
+    deterministic.  Here is why:
+
+    First, the program evaluates the fork() in the left operand of ||, leading
+    to the following fork diagram:
+
+        _________ parent  (first fork() returns non-zero)
+          \
+           \_____ child   (first fork() returns zero)
+
+    Since fork() returns non-zero for the parent, it is the parent this time
+    that short-circuits, and gets to execute the "then" branch of the
+    if-statement without executing the other fork().  Meanwhile, the child
+    process calls fork() a second time, producing a grandchild:
+
+        _____________ parent      (first fork() returned non-zero)
+          \
+           \_________ child       (second fork() returns non-zero)
+              \
+               \_____ grandchild  (second fork() returns zero)
+
+    If we continue the execution of each process, we'll find that each parent
+    does not print anything until its child has printed:
+
+        _____________o . . . . . . . . . . . . . . o__print "A"__ parent
+          \                                       /
+           \_________o . . . . . . o__print "A"__x                child
+              \                   /
+               \_____print "B"___x                                grandchild
+
+    (5.3)
+            i
+            for gor
+            for gor
+
+    The key to this problem was understanding how buffering works.  But before
+    we get to that, let's ignore the fork() for a second, and focus on what the
+    program would print if it only ran in a single process.
+
+    First, the program prints i, followed by a newline.
+
+    Then, the program declares a stack buffer, which it uses to store the string
+    "for":
+
+                    +---+---+---+---+
+                    |'f'|'o'|'r'| 0 | buf
+                    +---+---+---+---+
+
+    It prints out this string followed by a newline.
+
+    Then, the program points to the beginning of this buffer using str:
+
+                    +---+---+---+---+
+          str --->  |'f'|'o'|'r'| 0 | buf
+                    +---+---+---+---+
+
+    When the program executes str[0]++, it first dereferences str, then
+    increments the first character of this string, producing:
+
+                    +---+---+---+---+
+          str --->  |'g'|'o'|'r'| 0 | buf
+                    +---+---+---+---+
+
+    We dereference first because str[0]++ is the same as (*str)++.  Note that
+    str[0]++ is different from str++, which would instead advance str to point
+    to the second character in buf.
+
+    So, to summarize so far: the program (without fork()) would print out:
+
+        i
+        for gor
+
+    Note that I do NOT write out any '\n' characters in the output; a newline
+    does not appear in the terminal like that.
+
+    Now, let's see what happens when we introduce the fork() call.
+
+    The setlinebuf() call at the beginning of the program is a hint and reminder
+    that stdout is line-buffered (the comment even says so!).  This means that
+    after we write to stdout, the bytes are not ACTUALLY written to file
+    descriptor 1 (standard output) until a newline character is written, until
+    fflush() is called, or until the FILE pointer is fclose()d.
+
+    Instead, bytes written to stdout are buffered in the process's memory.  So,
+    just before the fork():
+
+        - 'i' and '\n' have been written to standard output.
+
+        - 'f', 'o', 'r', and ' ' have been written to the stdout FILE pointer,
+          but are still buffered in-memory.
+
+    Upon fork()ing, that buffer is duplicated like everything else in memory.
+    Both the parent and the child write the bytes 'g', 'o', 'r', and '\n' to
+    their copies of the stdout FILE pointer, appending to the buffered 'f', 'o',
+    'r', and '\n'.  Thus, the final output of the program, with the fork(), is:
+
+        i
+        for gor
+        for gor

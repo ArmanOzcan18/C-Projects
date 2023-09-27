@@ -1,0 +1,34 @@
+#include <stdio.h>
+#include <string.h>
+
+char *mystrncpy(char *dest, char *src, size_t n) {
+    int i;
+
+    for (i = 0; i < n && src[i]; i++)
+        dest[i] = src[i];
+
+    for ( ; i < n; i++)
+        // This does not correctly null-terminate the string, since '0' != 0.
+        // Trying to read from dest will lead to buffer overruns.
+        dest[i] = '0';
+
+    return dest;
+}
+
+int main(void) {
+    char b[8];
+
+    // Depending on the layout produced by your compiler, if b isn't correctly
+    // null-terminated, printing b will lead to printf() reading from garbage.
+    char garbage[8] = "garbage";
+
+    char a[8] = "123";
+
+    mystrncpy(b, a, sizeof(b));
+
+    printf("a =  \"%s\"\n", a);
+    printf("b =  \"%s\"\n", b);
+    printf("garbage = \"%s\"\n", garbage);
+
+    return 0;
+}

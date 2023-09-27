@@ -1,0 +1,580 @@
+Final Exam                                                      Dec 20, 2022
+
+COMS W3157 Advanced Programming                         Instructor: John Hui
+Fall 2022                                                Columbia University
+____________________________________________________________________________
+About this exam:
+
+  - There are 5 problems totaling 99 points + 1 point for taking the exam:
+
+      Attendance:   1 point           Problem 3:   15 points
+      Problem 1:    20 points         Problem 4:   18 points
+      Problem 2:    24 points         Problem 5:   22 points
+
+  - Assume the following system environment (unless otherwise specified):
+
+      All programs are built with GCC and run on Ubuntu Linux 22.04 (64-bit
+      x86), where sizeof(int) is 4 and sizeof(int *) is 8.
+
+      All standard library function calls and system calls are successful.
+      For example, you can assume malloc() does not return NULL.
+
+      For all C code in this exam, assume the presence of all necessary
+      #include directives for standard library headers (e.g., <stdio.h>,
+      <stdlib.h>, <unistd.h>, <string.h>, etc.).
+
+      If this exam refers to lab code, assume the versions provided by
+      skeleton code and solutions.
+
+      When writing code, avoid using hard-coded numbers as much as possible.
+      Hard-coded numbers make your program error prone, less extensible, and
+      less portable.  For example, using "sizeof(int *)" instead of "8" will
+      make it correct for both 32-bit and 64-bit environments.
+
+What to hand in and what to keep:
+
+  - At the end of the exam, you will hand in only the answer sheet, which
+    is the last two pages (one sheet printed double-sided) of this exam 
+    booklet.  You keep the rest of the exam booklet.
+
+  - Make sure you write your name & UNI on BOTH SIDES of the answer sheet.
+
+  - Write only your final answers on the answer sheet.  Verbosity will only
+    hurt your grade because if we find multiple answers to a question we
+    will cherry-pick the part that will result in the LOWEST grade.  This
+    policy ensures that a shotgun approach to solving a problem is never
+    rewarded.  If you wish to correct an answer, please clearly cross out
+    anything you don't consider final, or ask for a new answer sheet.
+
+  - Before you hand in your answer sheet, please copy down your answers back
+    onto the exam booklet so that you can verify your grade when the
+    solutions are published to the mailing list.
+
++---------------------------------------------------------------------+
+|  PLEASE DO NOT OPEN THIS EXAM BOOKLET UNTIL YOU ARE TOLD TO DO SO!  |
++---------------------------------------------------------------------+
+
+
+                                    1
+References
+----------------------------------------------------------------------------
+
+FILE *fopen(const char *filename, const char *mode);
+
+  - Opens a file, and returns a FILE * that you can pass to other
+    file-related functions to tell them on which file they should operate.
+
+  - "r" open for reading (file must already exist)
+    "w" open for writing (will trash existing file)
+    "a" open for appending (writes will always go to the end of file)
+    "r+" open for reading & writing (file must already exist)
+    "w+" open for reading & writing (will trash existing file)
+    "a+" open for reading & appending (writes will go to end of file)
+
+  - returns NULL if file could not be opened for some reason.
+
+int fseek(FILE *file, long offset, int whence);
+
+  - Sets the file position for next read or write.  The new position,
+    measured in bytes, is obtained by adding offset bytes to the position
+    specified by whence.  If whence is set to SEEK_SET, SEEK_CUR, or
+    SEEK_END, the offset is relative to the start of the file, the current
+    position indicator, or end-of-file, respectively.
+
+  - Returns 0 on success, non-zero on error.
+
+size_t fread(void *ptr, size_t size, size_t n, FILE *file);
+
+  - Reads n objects, each size bytes long, from file into the memory
+    location given by ptr.
+
+  - Returns the number of objects read, which may be less than n, in which
+    case feof() and ferror() will tell you if it was due to EOF or error.
+
+size_t fwrite(const void *ptr, size_t size, size_t n, FILE *file);
+
+  - Writes n objects, each size bytes long, from the memory location given
+    by ptr out to file.
+
+  - Returns the number of objects successfully written, which will be less
+    than n when there is an error.
+
+char *fgets(char *buf, int size, FILE *file);
+
+  - Reads at most size-1 bytes into buf, up to and including a newline
+    (which is stored into buf), and terminating buf with '\0'.
+
+  - Returns non-NULL on success, and NULL on EOF or error; feof() and
+    ferror() can be used to distinguish between EOF and error.
+
+int fputs(const char *str, FILE *file);
+
+  - Writes str to file, up to but not including the first null byte.
+
+  - Returns EOF on error.
+
+                                    2
+Problem [1]: 20 points
+----------------------------------------------------------------------------
+
+Consider freegrind.c:
+
+    int fg_a = 0, fg_b = 0;
+
+    void *fgmalloc(size_t size)
+    {
+        size_t *h = malloc(size + sizeof(size));
+
+        *h = size;
+
+        fg_a += size;
+        fg_b++;
+
+        return h + 1;
+    }
+
+    void fgfree(void *p)
+    {
+        size_t *h = p;
+
+        fg_a -= h[ ________ ];
+        fg_b--;
+
+        free( ________ );
+    }
+
+fgmalloc() and fgfree() allocate heap memory like malloc() and free(),
+except they also keep track of memory allocations and leaks.
+
+We test these functions using fgtest.c:
+
+    void *fgmalloc(size_t size);
+    void fgfree(void *p);
+    extern int fg_a, fg_b; // fg_a and fg_b are declared but not defined
+
+    int main(void)
+    {
+        int *i = fgmalloc(sizeof(int) * 3);
+
+        i[0] = htonl(31);
+        i[1] = ntohl(0x507 + i[0]);
+        i[2] = '0' << 8;
+
+        fwrite(i, sizeof(int), 3, stdout);
+
+        assert(fg_a == 12 && fg_b == 1);
+
+        fgfree(i);
+
+        assert(fg_a == 0 && fg_b == 0);
+    }
+
+
+
+                                    3
+Problem [1]: continued
+----------------------------------------------------------------------------
+
+We use a Makefile to build and run fgtest:
+
+    $ cat Makefile
+    CC        = ________
+    CFLAGS    = ________
+    LDFLAGS   = ________
+    LDLIBS    = ________
+    AR        = ar
+    ARFLAGS  += -U
+
+    .PHONY: default
+    default:  ______________
+            ./fgtest
+
+    fgtest: fgtest.o
+
+    fgtest.o: fgtest.c
+
+    libfg.a: libfg.a(freegrind.o)
+
+    libfg.a(freegrind.o): freegrind.o
+
+    freegrind.o: freegrind.c
+
+    $ make
+    gcc -g -c -o freegrind.o freegrind.c
+    ar rv -U libfg.a freegrind.o
+    ar: creating libfg.a
+    a - freegrind.o
+    gcc -g -c -o fgtest.o fgtest.c
+    gcc -L. fgtest.o -lfg -o fgtest
+    ./fgtest
+
+The output of ./fgtest is not shown, but it runs without any memory errors,
+memory leaks, or assertion failures.
+
+    (1.1)   On your answer sheet, complete the implementation of fgfree().
+
+              - Do NOT write any pointer casts.
+
+    (1.2)   On your answer sheet, complete the Makefile.
+
+              - Write "BLANK" if you mean to leave a field blank; you will
+                NOT receive credit for not writing anything.
+
+    (1.3)   In octal notation, write the file permissions for fgtest.
+
+              -  Assume that fgtest is only accessible to its owner.
+
+
+
+
+
+
+                                    4
+Problem [2]: 24 points
+----------------------------------------------------------------------------
+
+Next, we will modify fgtest.c, and then attempt to build and run it; your
+job is to predict the outcome of the modification.
+
+Note that each modification consists of a single-line change made on the
+basis of fgtest.c, and is made independently from the other modifications.
+
+We make the following modifications to fgtest.c:
+
+    (2.1)   Replace:    fwrite(i, sizeof(int), 3, stdout);
+               with:    fwrite(i, sizeof(i[4]), 3, stdout);
+
+    (2.2)   Replace:    fwrite(i, sizeof(int), 3, stdout);
+               with:    fwrite(i, sizeof(i), 1, stdout);
+
+    (2.3)   Replace:    fgfree(i);
+               with:    free(i);
+
+    (2.4)   Replace:    extern int fg_a, fg_b;
+               with:    int fg_a = 0, fg_b = 0;
+
+    (2.5)   Replace:    void fgfree(void *p);
+               with:    void fgfree(void);
+
+    (2.6)   Replace:    int main(void)
+               with:    int fgtest(void)
+
+After each modification, we attempt to build and run fgtest, this time
+without using a Makefile:
+
+    $ gcc -c fgtest.c -o fgtest.o           # Compile fgtest.c
+
+    $ gcc -c freegrind.c -o freegrind.o     # Compile freegrind.c
+
+    $ gcc fgtest.o freegrind.o -o fgtest    # Link object files
+
+    $ ./fgtest                              # Run fgtest
+
+For each modification, you must predict its impact:
+
+  - Write "COMPILE FGTEST ERROR" if fgtest.c no longer compiles.
+
+  - Write "COMPILE FREEGRIND ERROR" if fgtest.c compiles successfully, but
+    freegrind.c no longer compiles.
+
+  - Write "LINK ERROR" if all compilation steps succeed but linking fails.
+
+  - Write "RUNTIME ERROR" if fgtest builds successfully, but running fgtest
+    leads to a memory error or assert() failure.
+
+  - Write "DIFFERENT OUTPUT" if fgtest has no memory errors but different
+    output than before the modification.
+
+  - Otherwise, write "SAME OUTPUT".
+
+                                    5
+Problem [3]: 15 points
+----------------------------------------------------------------------------
+
+Consider the C programs decho and dcat, which are shown, built, and
+demonstrated in the following shell session:
+
+    $ cat decho.c
+    #include <stdio.h>
+    #include <stdlib.h>
+    int main(int argc, char **argv)
+    {
+        for (int i = 1; i < argc; i++) {
+            unsigned char d = atoi(argv[i]);
+            fwrite(&d, 1, 1, stdout);
+        }
+    }
+
+    $ cat dcat.c
+    #include <stdio.h>
+    int main(void)
+    {
+        unsigned char d;
+        while (fread(&d, 1, 1, stdin))
+            printf("%d, ", d);
+        printf("\n");
+    }
+
+    $ gcc decho.c -o decho && gcc dcat.c -o dcat
+
+    $ ./decho 0 1 2 4 10 | ./dcat
+    0, 1, 2, 4, 10,
+
+    $ ./decho 49 10 48 10 92 110 10
+    1
+    0
+    \n
+
+decho converts its command line arguments from decimal notation strings to
+bytes, and writes those bytes to stdout; dcat reads bytes from stdin and
+prints them to stdout in decimal notation, separated by commas.
+
+In the last command, note the ASCII representation of each byte value.
+
+Recall that wc -l counts the number of newlines from stdin and prints that
+number to stdout.  We give it the output of decho, like this:
+
+    $ ./decho 49 10 48 10 92 110 10 | wc -l
+
+    (3.1) What is the output of wc?
+
+We use dcat to inspect the output of the fgtest program (from Problem 1) on
+a little-endian system:
+
+    $ ./fgtest | ./dcat
+
+    (3.2) What does dcat print?  Do not write unnecessary punctuation.
+
+                                    6
+Problem [4]: 18 points
+----------------------------------------------------------------------------
+
+Now, consider fgecho.c, which also uses fgmalloc() and fgfree():
+
+    void *fgmalloc(size_t size);
+    void fgfree(void *p);
+    extern int fg_a, fg_b; // fg_a and fg_b are declared but not defined
+
+    int main(int argc, char **argv)
+    {
+        if (argc == 1) {
+            fprintf(stderr, "A %d %d\n", fg_a, fg_b);
+            return 0;
+        }
+
+        char **copy = fgmalloc(argc * sizeof(char *));
+
+        fprintf(stderr, "B %d %d\n", fg_a, fg_b);
+
+        for (int i = 0; i < argc; i++) {
+
+            size_t len = sizeof(argv[i]);
+            copy[i] = fgmalloc(len + 1);
+
+            strcpy(copy[i], argv[i]);     // Copy argv[i] to copy[i]
+
+            copy[i][sizeof(copy[i]) / 2] = '\0';
+        }
+
+        fprintf(stderr, "C %d %d\n", fg_a, fg_b);
+
+        for (int i = 0; i < argc; i++) {
+            printf("%s\n", copy[i]);
+            fgfree(copy[i]);
+        }
+
+        char *args[] = { argv[0], NULL };
+        execv(*args, args);
+
+        fgfree(copy);
+        fprintf(stderr, "D %d %d\n", fg_a, fg_b);
+    }
+
+We build and run fgecho like this:
+
+    $ gcc fgecho.c freegrind.c -o fgecho
+
+    $ ./fgecho ./every ./thing ./is ./bytes
+
+    (4.1)   What does fgecho write to its standard output?
+
+    (4.2)   What does fgecho write to its standard error?
+
+Answer precisely and do not add unnecessary punctuation.
+
+
+                                    7
+Problem [5]: 22 points
+----------------------------------------------------------------------------
+
+What do each of the following programs print?
+
+(5.1)
+
+    int main(void)
+    {
+        if (fork() && fork()) {
+            waitpid(-1, NULL, 0);   // Any child, ignore status, blocking
+            printf("A\n");
+        } else {
+            printf("B\n");
+        }
+    }
+
+(5.2)
+
+    int main(void)
+    {
+        if (fork() || fork()) {
+            waitpid(-1, NULL, 0);   // Any child, ignore status, blocking
+            printf("A\n");
+        } else {
+            printf("B\n");
+        }
+    }
+
+(5.3)
+
+    int main(void)
+    {
+        setlinebuf(stdout);         // Ensure stdout is line-buffered
+
+        printf("i\n");
+
+        char buf[] = "for";
+
+        printf("%s ", buf);
+
+        fork();
+
+        char *str = buf;
+        str[0]++;
+
+        printf("%s\n", str);
+    }
+
+Answer precisely and do not add unnecessary punctuation.
+
+If the output is unpredictable and may differ from run to run, write ALL
+possible outputs, with each outcome's output written in a separate column.
+
+
+
+
+                                    8
+COMS 3157, Fall 2022: Final Exam, Answer Sheet, page 1 of 2
+
+ UNI:                       Name:
+     -----------------------------------------------------------------------
+
+[1]
+
+(1.1)                               | (1.2)
+                                    |
+    void fgfree(void *p)            |     CC        = ________________
+    {                               |
+        size_t *h = p;              |     CFLAGS    = ________________
+                                    |
+        fg_a -= h[ ____________ ];  |     LDFLAGS   = ________________
+                                    |
+        fg_b--;                     |     LDLIBS    = ________________
+                                    |
+        free( ____________ );       |     AR        = ar
+    }                               |
+                                    |     ARFLAGS  += -U
+------------------------------------|
+                                    |     .PHONY: default
+(1.3) fgtest file permissions       |
+                                    |     default:  ______________________
+                                    |             ./fgtest
+                                    |
+----------------------------------------------------------------------------
+
+[2] Write "COMPILE FGTEST ERROR", "COMPILE FREEGRIND ERROR", "LINK ERROR",
+    "RUNTIME ERROR", "DIFFERENT OUTPUT", or "SAME OUTPUT".
+
+(2.1)                               | (2.4)
+      ___________________________   |       ___________________________
+                                    |
+(2.2)                               | (2.5)
+      ___________________________   |       ___________________________
+                                    |
+(2.3)                               | (2.6)
+      ___________________________   |       ___________________________
+                                    |
+                                    |
+----------------------------------------------------------------------------
+
+[3]
+
+(3.1)   $ ./decho 49 10 48 10 92 110 10 | wc -l
+
+
+
+----------------------------------------------------------------------------
+
+(3.2)   $ ./fgtest | ./dcat
+
+
+
+----------------------------------------------------------------------------
+
+                                    9
+COMS 3157, Fall 2022                       +---+---+---+---+---+---+---+---+
+Final Exam                       Your UNI: |   |   |   |   |   |   |   |   |
+Answer Sheet, page 2 of 2                  +---+---+---+---+---+---+---+---+
+
+
+Your Name:   _______________________________________________________________
+
+
+                  front->UNI: ________________
+
+left->UNI: ________________        [You]        right->UNI: ________________
+
+                   back->UNI: ________________
+
+
+----------------------------------------------------------------------------
+
+[4]
+
+(4.1) stdout                        | (4.2) stderr
+                                    |
+                                    |
+                                    |
+                                    |
+                                    |
+                                    |
+                                    |
+                                    |
+                                    |
+                                    |
+----------------------------------------------------------------------------
+
+[5]   If the output is unpredictable and may differ from run to run, write
+      ALL possible outputs; write each outcome in a separate column.
+
+(5.1)
+
+
+
+
+
+----------------------------------------------------------------------------
+
+(5.2)
+
+
+
+
+
+----------------------------------------------------------------------------
+
+(5.3)
+
+
+
+
+
+                                    10

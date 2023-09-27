@@ -1,0 +1,5 @@
+GET /~j-hui/cs3157/missing.html HTTP/1.1
+Host: clac.cs.columbia.edu:8888
+User-Agent: curl/7.81.0
+Accept: */*
+

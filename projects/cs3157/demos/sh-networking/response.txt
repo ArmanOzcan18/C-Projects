@@ -1,0 +1,31 @@
+HTTP/1.1 200 OK
+Date: Fri, 28 Oct 2022 22:52:37 GMT
+Server: Apache/2.4.52 (Ubuntu)
+Upgrade: h2
+Connection: Upgrade
+Last-Modified: Thu, 27 Oct 2022 06:24:14 GMT
+ETag: "16b-5ebfe30afbae4"
+Accept-Ranges: bytes
+Content-Length: 363
+Vary: Accept-Encoding
+Content-Type: text/html
+
+<html>
+<body>
+<h1>
+    Hi, I'm John!
+</h1>
+<p>
+<h2>Here are facts about myself:</h2>
+<table>
+    <tr>
+    <td><h3>I've been programming since 2014:</h3></td>
+    <td><img src="images/photo.jpg" width=300></td>
+    </tr>
+    <tr>
+    <td><h3>I really like pokemon:</h3></td>
+    <td><img src="images/pokemon.jpg" width=500></td>
+    </tr>
+</table>
+</body>
+</html>

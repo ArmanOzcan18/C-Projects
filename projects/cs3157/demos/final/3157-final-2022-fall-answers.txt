@@ -1,0 +1,95 @@
+[1]
+
+    (1.1)
+
+        void fgfree(void *p)
+        {
+            size_t *h = p;
+
+            fg_a -= h[-1];
+
+            fg_b--;
+
+            free(h - 1);
+            // free(--h); is also acceptable
+        }
+
+    (1.2)
+
+        CC        = gcc
+        CFLAGS    = -g
+        LDFLAGS   = -L.
+        LDLIBS    = -lfg
+        AR        = ar
+        ARFLAGS  += -U
+
+        .PHONY: default
+        default: libfg.a fgtest
+                ./fgtest
+
+    (1.3)
+
+        700   (written without setuid/setgid/sticky)
+
+      OR
+
+        0700  (written with setuid/setgid/sticky)
+
+
+[2]
+
+  (2.1)   SAME OUTPUT
+
+  (2.2)   DIFFERENT OUTPUT
+
+  (2.3)   RUNTIME ERROR
+
+  (2.4)   LINK ERROR
+
+  (2.5)   COMPILE FGTEST ERROR
+
+  (2.6)   LINK ERROR
+
+
+[3]
+
+    (3.1)   $ ./decho 49 10 48 10 92 110 10 | wc -l
+            3
+
+    (3.2)   $ ./fgtest | ./dcat
+            0, 0, 0, 31, 31, 0, 5, 7, 0, 48, 0, 0,
+
+
+[4]
+
+    (4.1)
+
+        ./fg
+        ./ev
+        ./th
+        ./is
+        ./by
+
+    (4.2)
+
+        B 40 1
+        C 85 6
+        A 0 0
+
+
+[5]
+
+    (5.1)
+            B           B
+            B           A
+            A           B
+
+    (5.2)
+            B
+            A
+            A
+
+    (5.3)
+            i
+            for gor
+            for gor
