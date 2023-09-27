@@ -1,0 +1,5 @@
+[user]
+	name = Arman Ozcan
+	email = ao2794@columbia.edu
+[pull]
+	rebase = false

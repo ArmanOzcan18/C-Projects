@@ -1,0 +1,15 @@
+# Setting envelope_from will make Mutt try to pass Return-Path header
+# to MTA.  A valid return-path is required to send to @columbia.edu.
+set use_envelope_from=yes
+
+# Set from address
+# must be @cloud.cs.columbia.edu
+set from="do.not.reply@cloud.cs.columbia.edu"
+set use_from=yes
+
+# Set SMTP relay information
+# There is a IP based whitelist on the cloud.cs side that controls
+# access
+set smtp_url="smtp://smtp-relay.gmail.com:587/"
+set ssl_starttls=yes
+set ssl_force_tls=yes

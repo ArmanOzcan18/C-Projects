@@ -1,0 +1,223 @@
+$ ls
+Makefile  foo.c  foo.h  main.c
+
+$ cat Makefile
+CC=gcc
+
+main: main.o foo.o
+
+foo.o: foo.c foo.h
+
+main.o: main.c foo.h
+
+$ git init
+(output redacted)
+
+$ git add *
+
+$ git commit -m "Commit 1"
+
+$ make
+gcc -c -o main.o main.c
+gcc -c -o foo.o foo.c
+gcc main.o foo.o -o main
+
+$ echo "// Some comment" >> main.c          # Append some comment to main.c
+
+$ make
+
+(( 2.1.1. What commands are run here? ))
+
+###
+# 2.1.1 Solution:
+#
+#       foo.c ----+-(CC)- foo.o ---+
+#                /                  \
+#       foo.h --+                    +--(LD)-- main
+#                \                  /
+#       main.c ---+-(CC)- main.o --+
+#
+# According to the dependency graph above, since main.c was updated, main.o
+# would need to be recompiled and then linked to produce the main
+# executable:
+#
+#   gcc -c -o main.o main.c
+#   gcc main.o foo.o -o main
+#
+# We do not need to recompile foo.o since neither foo.h nor foo.c have been
+# updated since foo.o was last updated.
+#
+###
+
+$ touch main.o
+
+$ make
+
+(( 2.1.2. What commands are run here? ))
+
+###
+# 2.1.2 Solution
+#
+# According to the dependency graph from before, we need to update main, since
+# the timestamp for main.o is now later than main's.  So we need to link all our
+# object files again:
+#
+#   gcc main.o foo.o -o main
+#
+###
+
+$ echo "// Some comment" >> foo.h           # Append some comment to foo.h
+
+$ echo "// Another comment" >> main.c       # Append another comment to main.c
+
+$ make
+
+(( 2.1.3. What commands are run here? ))
+
+###
+# 2.1.3 Solution
+#
+# We've updated foo.h and main.c.  Since both main.o and foo.o depend on foo.h,
+# we will need to recompile both of those, and then relink to get an up-to-date
+# main executable.  So all the original three commands will run again:
+#
+#   gcc -c -o main.o main.c
+#   gcc -c -o foo.o foo.c
+#   gcc main.o foo.o -o main
+#
+###
+
+$ touch grass
+
+$ git add main.c grass
+
+$ git status
+
+(( 2.1.4.1. What files are listed under "Changes to be committed"? ))
+(( 2.1.4.2. What files are listed under "Changes not staged for commit"? ))
+(( 2.1.4.3. What files are listed under "Untracked files"? ))
+
+###
+# 2.1.4 Solution
+#
+# Let's start by breaking down what the past few commands have done and how
+# they affect Git (which is different from how they affect Make).  First,
+# keep in mind that the "touch" command has no effect on Git.  Unlike Make, Git
+# only cares about the file contents, and not their timestamps.
+#
+# Since the first commit, we have appended to main.c and foo.h.  This
+# transfers main.c and foo.h into the "Changes not staged for commit" column as
+# they have been changed but no "git add" command has been executed.  Then we
+# made a new file called "grass".  This file is in the "Untracked files"
+# column since this file has never been added or committed before.
+#
+# Then, when we ran "git add main.c grass", we added our changes to the staging
+# area, so now they appear in the "Changes to be committed area".  This is why
+# "git status" shows us the following:
+#
+#   Changes to be committed:
+#       new file:   grass
+#       modified:   main.c
+#
+#   Changes not staged for commit:
+#       modified:   foo.h
+#
+#   Untracked files:
+#       foo.o
+#       main
+#       main.o
+###
+
+$ pwd
+/home/j-hui/repo1
+
+$ cd ..
+
+$ git clone repo1 repo2
+Cloning into 'repo2'...
+done.
+
+$ cd repo2
+
+$ ls
+
+(( 2.1.5. What files are in working directory of repo2? ))
+
+###
+# 2.1.5 Solution
+#
+# When you run the "git clone" command, it only copies the commit history of
+# the source repo.  In our case, we only ever made a single commit---our initial
+# commit---so our working directory in repo2 will be identical to the working
+# directory we first committed in repo1.  In particular, we would see:
+#
+#   Makefile foo.c    foo.h    main.c
+###
+
+$ make
+
+(( 2.1.6. What commands are run here? ))
+
+###
+# 2.1.6 Solution
+#
+# Since nothing has been built yet, we will run all three of the same commands
+# as before to fully compile and link the main executable:
+#
+#   gcc -c -o main.o main.c
+#   gcc -c -o foo.o foo.c
+#   gcc main.o foo.o -o main
+#
+###
+
+$ cd ../repo1
+
+$ git commit -m "Commit 2"
+
+$ cd ../repo2
+
+$ touch main.c
+
+$ git status
+
+(( 2.1.7.1. What files are listed under "Changes to be committed"? ))
+(( 2.1.7.2. What files are listed under "Changes not staged for commit"? ))
+(( 2.1.7.3. What files are listed under "Untracked files"? ))
+
+###
+# 2.1.7 Solution
+#
+# This question is asking for the git status of repo2; the commit we just made
+# in repo1 has no effect on repo2.  So, we just need to recall what we have done
+# in repo2 since we first cloned it:  we've run "make" and "touch main.c".
+#
+# Git does NOT care about the touch command, since touch does not change the
+# contents of the file touched.
+#
+# "make" command, on the other hand, generated three new files for us: foo.o,
+# main.o, and main. In repo2, none of those files have ever been committed or
+# added so they are all "Untracked files." Since we have not changed any files
+# or run the "git add" command, there are no files in the "Changes to be
+# committed" or the "Changes not staged for commit" columns.
+#
+# "git status" only shows the untracked files:
+#
+#   Untracked files:
+#       foo.o
+#       main
+#       main.o
+#
+###
+
+$ git log
+
+(( 2.1.8. List all commit messages in the log, starting from most recent. ))
+
+###
+# 2.1.8 Solution
+#
+# We are running the "git log" command in repo2.  Since its commit history
+# is now indepenent from repo1, the fact that we ran "git commit" in repo1 has
+# no effect on repo2.  Therefore, the commit history of repo2 only contains the
+# initial commit made in repo1, whose commit message is "Commit 1".
+###

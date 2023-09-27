@@ -1,0 +1,3 @@
+#!/bin/sh
+
+nc -l $1 | ~j-hui/cs3157-pub/bin/mdb-lookup-cs3157

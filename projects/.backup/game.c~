@@ -1,0 +1,141 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "game.h"
+#include "words.h"
+
+/*
+ * Read a guess from the user, after an optional prompt.
+ *
+ * The input is truncated to the given size and copied to the guess buffer
+ * (without newline); the rest of the input line is discarded.
+ *
+ * Returns 0 on success, non-zero otherwise (i.e., if user closed stdin).
+ */
+int read_guess(char* guess, int size, const char* prompt)
+{
+    char input_buf[32];
+
+    if (prompt)
+        printf("%s", prompt);
+
+    if (fgets(input_buf, sizeof(input_buf), stdin) == NULL)
+        return 1;
+
+    if (size > 0) {
+        // Copy characters of input to guess
+        strncpy(guess, input_buf, size - 1);
+        guess[size - 1] = '\0';
+
+        // Truncate possible newline from guess.
+        if (guess[strlen(guess) - 1] == '\n')
+            guess[strlen(guess) - 1] = '\0';
+    }
+
+    // User might have typed more than 32 characters into the line.
+    // Keep consuming input until we encounter the newline.
+    while (input_buf[strlen(input_buf) - 1] != '\n')
+        fgets(input_buf, sizeof(input_buf), stdin);
+
+    return 0;
+}
+
+/*
+ * Print a wordle-style hint based on the user's guess and the correct answer.
+ *
+ * For each character in the guess, if it matches the character at the same
+ * position in the answer, print '+'. If it does not match, but exists in the
+ * answer at some other position, print '-'. Otherwise, print '_'. Finally, the
+ * 5 hint characters should be followed by a newline.
+ *
+ * For example, given answer = "hello" and guess = "world", this should print
+ * "_-_+_\n".
+ */
+void give_hint(const char* answer, const char* guess)
+{
+    int answer_len = strlen(answer);
+    char output[answer_len];
+
+    for(int i=0; i<answer_len; i++){
+    	for(int j=0; j<answer_len; j++){
+	    if(guess[i]==answer[j]){
+	    	if(i==j){
+		    output[i]='+';
+		    goto cont;
+		}
+		else
+		    output[i]='-';
+	    }
+	}
+	if(output[i]!='+' && output[i]!='-')
+		output[i]='_';
+	cont:
+    }
+    printf("%s\n", output);
+}
+
+/*
+ * Print message about the correctness of the user's guess.
+ *
+ * This function just tells the user how many characters in the guess are
+ * present in the answer (though it says nothing about whether they are in the
+ * right order/position).
+ *
+ * Note that this does not try to do anything clever, i.e., if the answer is
+ * "hello" and the guess is "lllll", this function will tell the user that they
+ * correctly guessed 5 characters.
+ */
+void give_stats(const char* answer, const char* guess)
+{
+    int correct_characters = 0;
+
+    int answer_len = strlen(answer);
+
+    for (int i = 0; i < answer_len; i++) {
+        for (int j = 0; j < answer_len; j++) {
+            if (guess[i] == answer[j]) {
+                correct_characters++;
+                break;
+            }
+        }
+    }
+
+    printf("You correctly guessed %d characters.\n", correct_characters);
+}
+
+void play_game(const char* answer, int max_guesses)
+{
+
+    int num_guesses = 0;
+
+    // We use at least 6 characters of input to detect whether the user guessed
+    // exactly 5 characters, or went over or under.
+    char guess[WORD_SIZE + 2];
+
+    while (read_guess(guess, sizeof(guess), "Guess:") == 0) {
+
+        if (strlen(guess) != WORD_SIZE) {
+            printf("Your guess must be exactly %d characters. Please make another.\n",
+                WORD_SIZE);
+            continue;
+        }
+
+        if (strcmp(answer, guess) == 0) {
+            printf("Congratulations! You guessed the right answer: %s\n", answer);
+            return;
+        }
+
+        give_hint(answer, guess);
+        give_stats(answer, guess);
+
+        if (++num_guesses > max_guesses && max_guesses > 0) {
+            printf("Out of guesses. The answer was: %s\n", answer);
+            printf("Better luck next time!\n");
+            return;
+        }
+    }
+
+    printf("Game aborted. The answer was: %s\n", answer);
+    return;
+}

@@ -1,0 +1,12 @@
+let g:netrw_dirhistmax  =10
+let g:netrw_dirhistcnt =4
+let g:netrw_dirhist_4='/mnt/disks/students229/ao2794/cs3157/lab6/part1'
+let g:netrw_dirhist_3='/mnt/disks/students229/ao2794/cs3157/demos/tcp-echo'
+let g:netrw_dirhist_2='/mnt/disks/students229/ao2794/cs3157/lab1/part2/words'
+let g:netrw_dirhist_1='/mnt/disks/students229/ao2794/cs3157/lab1/part1'
+let g:netrw_dirhist_0='/mnt/disks/students229/ao2794/cs3157/lab1'
+let g:netrw_dirhist_9='/mnt/disks/students229/ao2794/cs3157'
+let g:netrw_dirhist_8='/mnt/disks/students229/ao2794/cs3157/lab1'
+let g:netrw_dirhist_7='/mnt/disks/students229/brs2164'
+let g:netrw_dirhist_6='/mnt/disks/students229'
+let g:netrw_dirhist_5='/mnt/disks'
