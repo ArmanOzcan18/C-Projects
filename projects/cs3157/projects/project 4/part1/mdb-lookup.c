@@ -1,0 +1,158 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <mylist.h>
+#include "mdb.h"
+#include <string.h>
+
+void printRec(void *rec){
+    struct MdbRec *record = (struct MdbRec *) rec;
+    printf("This is the name: %s\n",(const char *)record->name);
+    printf("This is the message: %s\n",(const char *)record->msg);        
+}
+
+int main(int argc, char **argv) {
+    /*
+     * Open file whose name is given by argv[1].
+     */
+
+    if (argc != 2) {
+        fprintf(stderr, "%s\n", "usage: mdb-lookup <database-file-name>");
+        exit(1);
+    }
+
+    char *filename = argv[1];
+    FILE *fp = fopen(filename, "r");
+    if (fp == NULL) {
+        perror(filename);
+        exit(1);
+    }
+
+    struct List list;
+  
+    initList(&list);
+
+    /*
+     * Read the file line-by-line, copying line numbers into a list as we go.
+     */
+
+    // Define a buffer we will read each line into.
+     
+    size_t size = sizeof(struct MdbRec);
+    char buf[size];   
+    int len;
+    struct Node *prev = NULL;  
+    while((len = fread(buf, 1, size, fp)) > 0) {
+         
+       if(len != (int) size ){
+           perror("The size of this database file is not a multiple of 40!");
+           traverseList(&list, &free);
+           removeAllNodes(&list);
+           exit(1);
+       }
+       // char name[16];
+       // char msg[24];
+       // memcpy(name, buf, 16 );
+       // memcpy(msg, (buf + 16), 24);
+        
+        struct MdbRec *record = malloc(size);
+        if(record == NULL){
+            perror("malloc returned NULL");
+            traverseList(&list, &free);
+            removeAllNodes(&list);
+            exit(1);
+        }
+           
+        memcpy(record->name,  buf, 16);
+        memcpy(record->msg, buf + 16, 24);
+        
+        
+        prev = addAfter(&list, prev, record); 
+        if(prev == NULL){
+            perror("Couldn't add the next data in!");
+            traverseList(&list, &free);
+            removeAllNodes(&list);
+            exit(1);
+        } 
+    }
+
+    /*
+     * Did we terminate the fread() loop because of an error?
+     * If so, report the error.
+     */
+
+    if (ferror(fp)) {
+        perror(filename);
+        exit(1);
+    }
+
+    fclose(fp);
+
+    // traverseList(&list, &printRec);
+    
+    // printf("%s\n", buf);
+    
+    
+    
+    char buf2[500];
+     
+    printf("lookup: ");
+
+    while(fgets(buf2, sizeof(buf2), stdin)){
+       
+        int sizeOfString; 
+       // printf("This the buffer before: %s\n", buf2);
+        
+        if(strlen(buf2)<=6){
+            sizeOfString = strlen(buf2);
+        }else{
+            sizeOfString = 6;
+        }
+        char string[sizeOfString];
+          
+        strncpy(string, buf2, sizeOfString-1);
+        string[sizeOfString-1] = '\0';
+        
+        //printf("The key is: %s\n",string);
+  
+        
+        while(buf2[strlen(buf2)-1] != '\n' ){
+            fgets(buf2, sizeof(buf2),stdin);
+        }
+
+       
+        //printf("This is the buffer after: %s\n", buf2);
+            
+            struct Node *curr = (struct Node*) (&list)->head;
+            int lineno = 1;
+            struct MdbRec *record;
+            while(curr != NULL){
+                record = (struct MdbRec *) curr->data;
+                // printf("The name: %s\n",record->name);  
+                // printf("The msg: %s\n",record->msg);
+
+                if(strstr(record->name,string) != NULL){
+                    printf("%4d: {%s} said {%s}\n",lineno, record->name, record->msg);
+                }else if(strstr(record->msg,string) != NULL){
+                    printf("%4d: {%s} said {%s}\n",lineno, record->name, record->msg);
+                }
+                 
+                lineno++;
+                curr = curr->next;
+        }
+
+    printf("\nlookup: ");
+   
+    // fseek(stdin, 0, SEEK_END);   
+   
+    }
+    
+    traverseList(&list, &free);
+    removeAllNodes(&list);   
+
+    if (ferror(stdin)) {
+        perror("There was an error in stdin.");
+        exit(1);
+    }
+
+    return 0;
+}
